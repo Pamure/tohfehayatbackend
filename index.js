@@ -14,7 +14,9 @@ const db = require('./src/db');
 
 // Import authentication routes
 const authRoutes = require('./src/routes/auth.routes');
-
+const testRoutes = require('./src/routes/test.routes');
+const donationRoutes = require('./src/routes/donation.routes.js');
+const requestRoutes = require('./src/routes/request.routes');
 // ------------------------------------------------------
 // Create an Express application
 // ------------------------------------------------------
@@ -65,7 +67,9 @@ app.get('/api/health', async (req, res) => {
 
 // Mount authentication routes under /api/auth
 app.use('/api/auth', authRoutes);
-
+app.use('/api/test', testRoutes);
+app.use('/api/donations', donationRoutes);
+app.use('/api/requests', requestRoutes);
 // ------------------------------------------------------
 // --- Server Startup ---
 // ------------------------------------------------------
