@@ -13,7 +13,6 @@ const isBloodCompatible = (donor, recipient) => {
 };
 
 exports.createDonation = async (req, res) => {
-  let newDonation;
   try {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ message: 'Unauthorized: user ID not found.' });
@@ -25,42 +24,39 @@ exports.createDonation = async (req, res) => {
         user_id, donor_name, age, blood_group, organ, contact, city,
         availability_date, medical_notes, requested_compensation_amount, status
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
       RETURNING *;
     `;
-    const values = [userId, donor_name, age, blood_group, organ, contact, city, availability_date, medical_notes || null, requested_compensation_amount || 0.0, 'pending'];
+    const values = [userId, donor_name, age, blood_group, organ, contact, city, availability_date, medical_notes || null, requested_compensation_amount || 0.0];
     const result = await db.query(insertQuery, values);
-    newDonation = result.rows[0];
+    const newDonation = result.rows[0];
+    res.status(201).json({ message: 'Donation created successfully.', status: 'pending', donation: newDonation });
   } catch (err) {
     console.error('Create donation error:', err);
     return res.status(500).json({ message: 'Server error while creating donation.', error: err.message });
   }
+};
 
+exports.checkDonationMatches = async (req, res) => {
   try {
-    const { organ, blood_group, id: newDonationId } = newDonation;
+    const { organ, blood_group } = req.body;
+    const donorUserId = req.user.userId;
     const findMatchQuery = `
       SELECT * FROM requests
-      WHERE status = 'pending' AND organ_needed = $1
+      WHERE status = 'pending'
+      AND organ_needed = $1
+      AND requester_user_id != $2
       ORDER BY created_at ASC;
     `;
-    const potentialMatches = await db.query(findMatchQuery, [organ]);
-    let matchedRequest = null;
+    const potentialMatches = await db.query(findMatchQuery, [organ, donorUserId]);
+    const compatibleMatches = [];
     for (const request of potentialMatches.rows) {
-      if (isBloodCompatible(blood_group, request.blood_group)) {
-        matchedRequest = request;
-        break;
-      }
+      if (isBloodCompatible(blood_group, request.blood_group)) compatibleMatches.push(request);
     }
-    if (matchedRequest) {
-      await db.query(`UPDATE donations SET status = 'accepted', accepted_by_user_id = $1 WHERE id = $2;`, [matchedRequest.requester_user_id, newDonationId]);
-      await db.query(`UPDATE requests SET status = 'matched', matched_donation_id = $1 WHERE id = $2;`, [newDonationId, matchedRequest.id]);
-      newDonation.status = 'accepted';
-      return res.status(201).json({ message: 'Donation created and an immediate match was found!', status: 'matched', donation: newDonation, matchedRequest });
-    }
-    res.status(201).json({ message: 'Donation created successfully. No immediate match found.', status: 'pending', donation: newDonation });
-  } catch (matchErr) {
-    console.error('Error during matching process:', matchErr);
-    res.status(201).json({ message: 'Donation was created, but an error occurred during matching.', status: 'pending', donation: newDonation, matchError: matchErr.message });
+    res.status(200).json({ matches: compatibleMatches });
+  } catch (err) {
+    console.error('Check donation matches error:', err);
+    res.status(500).json({ message: 'Server error while checking matches.' });
   }
 };
 
@@ -98,6 +94,11 @@ exports.acceptDonation = async (req, res) => {
   try {
     const donationId = req.params.id;
     const accepterUserId = req.user.userId;
+    const donationResult = await db.query("SELECT * FROM donations WHERE id = $1", [donationId]);
+    if (donationResult.rows.length === 0) return res.status(404).json({ message: 'Donation not found.' });
+    const donation = donationResult.rows[0];
+    if (donation.user_id === accepterUserId) return res.status(403).json({ message: 'You cannot accept your own donation.' });
+    if (donation.status !== 'pending') return res.status(400).json({ message: 'Donation not available or already accepted.' });
     const updateQuery = `
       UPDATE donations
       SET status = 'accepted', accepted_by_user_id = $1
@@ -122,9 +123,6 @@ exports.acceptDonation = async (req, res) => {
 exports.getMyDonations = async (req, res) => {
   try {
     const userId = req.user.userId;
-
-    // This query finds all donations posted by the user
-    // AND joins the 'users' table to get the RECIPIENT'S info if it's accepted.
     const query = `
       SELECT
         d.*,
@@ -137,18 +135,10 @@ exports.getMyDonations = async (req, res) => {
       WHERE d.user_id = $1
       ORDER BY d.created_at DESC;
     `;
-
     const result = await db.query(query, [userId]);
-
-    res.status(200).json({
-      message: 'Fetched user donations successfully!',
-      donations: result.rows
-    });
-
+    res.status(200).json({ message: 'Fetched user donations successfully!', donations: result.rows });
   } catch (err) {
     console.error('Get my donations error:', err);
-    res.status(500).json({
-      message: 'Server error while fetching user donations.'
-    });
+    res.status(500).json({ message: 'Server error while fetching user donations.' });
   }
 };
