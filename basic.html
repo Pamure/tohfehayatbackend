@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tohfe Hayat - API Tester</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #f4f4f4; }
+    div.container { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    input { display: block; width: 300px; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; }
+    button { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    pre { background: #eee; padding: 10px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+    /* --- NEW STYLES --- */
+    #results-list { max-height: 400px; overflow-y: auto; }
+    .result-item { border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+    .result-item strong { color: #0056b3; }
+  </style>
+</head>
+<body>
+
+  <h1>Tohfe Hayat - API Tester</h1>
+  <p>Open the Developer Console (F12) to see full API responses.</p>
+
+  <p><b>Current Auth Token:</b> <span id="token-status">None</span></p>
+
+  <div class="container">
+    <h2>Step 1: Register & Login</h2>
+    <h3>Register</h3>
+    <form id="form-register">
+      <input type="text" id="reg-name" placeholder="Full Name (Test User)" value="Test User">
+      <input type="email" id="reg-email" placeholder="Email" value="user@test.com">
+      <input type="password" id="reg-pass" placeholder="Password" value="password123">
+      <input type="text" id="reg-blood" placeholder="Blood Group (e.g., A+)" value="A+">
+      <input type="text" id="reg-city" placeholder="City" value="Testville">
+      <input type="text" id="reg-phone" placeholder="Phone" value="1234567890">
+      <button type="submit">Register</button>
+    </form>
+    <hr style="margin: 20px 0;">
+    <h3>Login</h3>
+    <form id="form-login">
+      <input type="email" id="login-email" placeholder="Email" value="user@test.com">
+      <input type="password" id="login-pass" placeholder="Password" value="password123">
+      <button type="submit">Login</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <h2>Step 2: Create Donation (as Donor)</h2>
+    <form id="form-donate">
+      <input type="text" id="donate-name" placeholder="Donor Name" value="Test Donor">
+      <input type="number" id="donate-age" placeholder="Age" value="30">
+      <input type="text" id="donate-blood" placeholder="Blood Group" value="A+">
+      <input type="text" id="donate-organ" placeholder="Organ" value="Kidney">
+      <input type="text" id="donate-contact" placeholder="Contact" value="1234567890">
+      <input type="text" id="donate-city" placeholder="City" value="Testville">
+      <input type="date" id="donate-date" value="2025-12-31">
+      <button type="submit">Create Donation</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <h2>Step 3: Create Request (as Recipient)</h2>
+    <form id="form-request">
+      <input type="text" id="req-name" placeholder="Recipient Name" value="Test Recipient">
+      <input type="number" id="req-age" placeholder="Age" value="28">
+      <input type="text" id="req-blood" placeholder="Blood Group" value="A+">
+      <input type="text" id="req-organ" placeholder="Organ Needed" value="Kidney">
+      <input type="text" id="req-contact" placeholder="Contact" value="0987654321">
+      <input type="text" id="req-city" placeholder="City" value="Testville">
+      <button type="submit">Create Request</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <h2>Step 4: Search/Filter Donations</h2>
+    <form id="form-search-donations">
+      <input type="text" id="search-d-city" placeholder="City (optional)">
+      <input type="text" id="search-d-blood" placeholder="Blood Group (optional)">
+      <input type="text" id="search-d-organ" placeholder="Organ (optional)">
+      <button type="submit">Search Donations</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <h2>Step 5: Search/Filter Requests</h2>
+    <form id="form-search-requests">
+      <input type="text" id="search-r-city" placeholder="City (optional)">
+      <input type="text" id="search-r-blood" placeholder="Blood Group (optional)">
+      <input type="text" id="search-r-organ" placeholder="Organ Needed (optional)">
+      <button type="submit">Search Requests</button>
+    </form>
+  </div>
+
+  <div class="container">
+    <h2>Results List</h2>
+    <div id="results-list">
+      <p>Your search results will appear here...</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <h2>Raw API Response:</h2>
+    <pre id="api-response">Waiting for a request...</pre>
+  </div>
+
+  <script>
+   const API_URL = 'http://localhost:3000/api';
+   let authToken = null;
+   const responseEl = document.getElementById('api-response');
+   const tokenStatusEl = document.getElementById('token-status');
+   const resultsListEl = document.getElementById('results-list'); // <-- NEW
+
+   // --- Helper to show output (UPDATED) ---
+   function showResponse(data) {
+       // 1. Show the raw JSON
+       const prettyJson = JSON.stringify(data, null, 2);
+       console.log('API Response:', data);
+       responseEl.textContent = prettyJson;
+
+       // 2. Clear the visual results list
+       resultsListEl.innerHTML = '';
+
+       // 3. Display Donation results
+       if (data.donations && data.donations.length > 0) {
+           data.donations.forEach(item => {
+               const el = document.createElement('div');
+               el.className = 'result-item';
+               el.innerHTML = `
+                   <strong>Donation: ${item.organ}</strong> (Blood: ${item.blood_group})<br>
+                   In: ${item.city} | By: ${item.donor_name}, Age ${item.age}
+               `;
+               resultsListEl.appendChild(el);
+           });
+       }
+       // 4. Display Request results
+       else if (data.requests && data.requests.length > 0) {
+           data.requests.forEach(item => {
+               const el = document.createElement('div');
+               el.className = 'result-item';
+               el.innerHTML = `
+                   <strong>Request: ${item.organ_needed}</strong> (Blood: ${item.blood_group})<br>
+                   In: ${item.city} | By: ${item.requester_name}, Age ${item.age}
+               `;
+               resultsListEl.appendChild(el);
+           });
+       }
+       // 5. Handle no results
+       else if (data.donations || data.requests) {
+           resultsListEl.innerHTML = '<p>No matching results found.</p>';
+       }
+   }
+
+   // --- 1. Register ---
+   document.getElementById('form-register').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       const body = {
+           full_name: document.getElementById('reg-name').value,
+           email: document.getElementById('reg-email').value,
+           password: document.getElementById('reg-pass').value,
+           blood_group: document.getElementById('reg-blood').value,
+           city: document.getElementById('reg-city').value,
+           phone: document.getElementById('reg-phone').value,
+       };
+       const res = await fetch(`${API_URL}/auth/register`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(body),
+       });
+       showResponse(await res.json());
+   });
+
+   // --- 2. Login ---
+   document.getElementById('form-login').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       const body = {
+           email: document.getElementById('login-email').value,
+           password: document.getElementById('login-pass').value,
+       };
+       const res = await fetch(`${API_URL}/auth/login`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(body),
+       });
+       const data = await res.json();
+       if (data.token) {
+           authToken = data.token;
+           tokenStatusEl.textContent = `Token acquired for: ${data.user.email}`;
+       }
+       showResponse(data);
+   });
+
+   // --- 3. Create Donation ---
+   document.getElementById('form-donate').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       if (!authToken) return showResponse({ message: "Error: You must login first." });
+       const body = {
+           donor_name: document.getElementById('donate-name').value,
+           age: parseInt(document.getElementById('donate-age').value),
+           blood_group: document.getElementById('donate-blood').value,
+           organ: document.getElementById('donate-organ').value,
+           contact: document.getElementById('donate-contact').value,
+           city: document.getElementById('donate-city').value,
+           availability_date: document.getElementById('donate-date').value,
+       };
+       const res = await fetch(`${API_URL}/donations`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+           body: JSON.stringify(body),
+       });
+       showResponse(await res.json());
+   });
+
+   // --- 4. Create Request ---
+   document.getElementById('form-request').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       if (!authToken) return showResponse({ message: "Error: You must login first." });
+       const body = {
+           requester_name: document.getElementById('req-name').value,
+           age: parseInt(document.getElementById('req-age').value),
+           blood_group: document.getElementById('req-blood').value,
+           organ_needed: document.getElementById('req-organ').value,
+           contact: document.getElementById('req-contact').value,
+           city: document.getElementById('req-city').value,
+       };
+       const res = await fetch(`${API_URL}/requests`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+           body: JSON.stringify(body),
+       });
+       showResponse(await res.json());
+   });
+
+   // --- 5. (NEW JS) Search Donations ---
+   document.getElementById('form-search-donations').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       if (!authToken) return showResponse({ message: "Error: You must login first." });
+       const params = new URLSearchParams();
+       const city = document.getElementById('search-d-city').value;
+       const blood = document.getElementById('search-d-blood').value;
+       const organ = document.getElementById('search-d-organ').value;
+       if (city) params.append('city', city);
+       if (blood) params.append('blood_group', blood);
+       if (organ) params.append('organ', organ);
+       const res = await fetch(`${API_URL}/donations?${params.toString()}`, {
+           method: 'GET',
+           headers: { 'Authorization': `Bearer ${authToken}` }
+       });
+       showResponse(await res.json());
+   });
+
+   // --- 6. (NEW JS) Search Requests ---
+   document.getElementById('form-search-requests').addEventListener('submit', async (e) => {
+       e.preventDefault();
+       if (!authToken) return showResponse({ message: "Error: You must login first." });
+       const params = new URLSearchParams();
+       const city = document.getElementById('search-r-city').value;
+       const blood = document.getElementById('search-r-blood').value;
+       const organ = document.getElementById('search-r-organ').value;
+       if (city) params.append('city', city);
+       if (blood) params.append('blood_group', blood);
+       if (organ) params.append('organ_needed', organ);
+       const res = await fetch(`${API_URL}/requests?${params.toString()}`, {
+           method: 'GET',
+           headers: { 'Authorization': `Bearer ${authToken}` }
+       });
+       showResponse(await res.json());
+   });
+  </script>
+</body>
+</html>

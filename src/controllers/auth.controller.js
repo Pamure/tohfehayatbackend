@@ -1,6 +1,4 @@
-// ------------------------------------------------------
-// Import required modules
-// ------------------------------------------------------
+// src/controllers/auth.controller.js
 const db = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -10,26 +8,52 @@ const jwt = require('jsonwebtoken');
 // ------------------------------------------------------
 exports.registerUser = async (req, res) => {
   // 1. Extract user data from the request body
-  const { full_name, email, password, blood_group, city, phone } = req.body;
+  const {
+    full_name,
+    email,
+    password,
+    blood_group,
+    city,
+    phone,
+    date_of_birth, // <-- NEW
+    gender,        // <-- NEW
+  } = req.body;
 
-  // (Optional) Basic validation could be added here
+  // 2. Basic validation
+  if (!full_name || !email || !password || !blood_group || !city || !phone) {
+    return res.status(400).json({
+      message: 'Missing required fields: full_name, email, password, blood_group, city, and phone are required.',
+    });
+  }
 
   try {
-    // 2. Hash the password
+    // 3. Hash the password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // 3. SQL query to insert a new user
+    // 4. SQL query to insert a new user (UPDATED)
     const insertQuery = `
-      INSERT INTO users (full_name, email, password_hash, blood_group, city, phone)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO users (
+        full_name, email, password_hash, blood_group, city, phone, date_of_birth, gender
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, email, full_name;
     `;
 
-    const values = [full_name, email, passwordHash, blood_group, city, phone];
+    const values = [
+      full_name,
+      email,
+      passwordHash,
+      blood_group,
+      city,
+      phone,
+      date_of_birth, // Can be null if not provided
+      gender,        // Can be null if not provided
+    ];
+
     const result = await db.query(insertQuery, values);
 
-    // 4. Success response
+    // 5. Success response
     res.status(201).json({
       message: 'User registered successfully!',
       user: result.rows[0],
@@ -37,7 +61,6 @@ exports.registerUser = async (req, res) => {
 
   } catch (err) {
     console.error('Registration error:', err);
-
     // Handle duplicate email (unique constraint violation)
     if (err.code === '23505') {
       return res.status(400).json({
@@ -54,6 +77,8 @@ exports.registerUser = async (req, res) => {
 // ------------------------------------------------------
 // Login Controller
 // ------------------------------------------------------
+// (This function was already correct in your file ,
+// no changes were needed, but it's included here for completeness)
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -86,7 +111,7 @@ exports.loginUser = async (req, res) => {
         userId: user.id,
         isAdmin: user.is_admin,
       },
-      process.env.JWT_SECRET, // <-- Add this in your .env file
+      process.env.JWT_SECRET, // <-- Reads from your .env file
       { expiresIn: '1h' }
     );
 

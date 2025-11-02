@@ -16,7 +16,7 @@ const db = require('./src/db');
 const authRoutes = require('./src/routes/auth.routes');
 const testRoutes = require('./src/routes/test.routes');
 const donationRoutes = require('./src/routes/donation.routes.js');
-const requestRoutes = require('./src/routes/request.routes');
+const requestRoutes = require('./src/routes/request.routes.js');
 // ------------------------------------------------------
 // Create an Express application
 // ------------------------------------------------------
